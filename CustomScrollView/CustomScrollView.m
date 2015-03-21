@@ -120,10 +120,18 @@
             velocity.y = -velocity.y;
             NSLog(@"decelerating with velocity: %@", NSStringFromCGPoint(velocity));
 
-            POPDecayAnimation *decayAnimation = [POPDecayAnimation animation];
-            decayAnimation.property = [self boundsOriginProperty];
-            decayAnimation.velocity = [NSValue valueWithCGPoint:velocity];
-            [self pop_addAnimation:decayAnimation forKey:@"decelerate"];
+            BOOL outsideBounds = [self outsideBounds];
+            // if paging is not enabled or we are outside the bounds - use pop decay animation
+            if (! self.pagingEnabled || outsideBounds) {
+                POPDecayAnimation *decayAnimation = [POPDecayAnimation animation];
+                decayAnimation.property = [self boundsOriginProperty];
+                decayAnimation.velocity = [NSValue valueWithCGPoint:velocity];
+                [self pop_addAnimation:decayAnimation forKey:@"decelerate"];
+                
+            // if we just
+            } else {
+                [self animateToPageWithVelocity:velocity];
+            }
         }
             break;
 
@@ -133,12 +141,102 @@
 
 }
 
+
+
+- (void)animateToPageWithVelocity:(CGPoint)velocity
+{
+    CGFloat animationDuration = 0.35;
+    
+    // calculate projected bounds origin
+    CGFloat projectedX = self.bounds.origin.x + velocity.x * animationDuration;
+    CGFloat projectedY = self.bounds.origin.y + velocity.y * animationDuration;
+    
+    // check that we don't overshoot with our projected bounds origin coordinates
+    projectedX = fmax(0, fmin(projectedX, self.contentSize.width - self.bounds.size.width));
+    projectedY = fmax(0, fmin(projectedY, self.contentSize.height - self.bounds.size.height));
+    
+    // calculate the target number of page
+    CGFloat projectedXPageNo = roundf(projectedX / self.bounds.size.width);
+    CGFloat projectedYPageNo = roundf(projectedY / self.bounds.size.height);
+    
+    CGFloat startXPageNo = roundf(self.startBounds.origin.x / self.bounds.size.width);
+    CGFloat startYPageNo = roundf(self.startBounds.origin.y / self.bounds.size.height);
+    
+    // don't allow moving past 1 page at any time
+    projectedXPageNo = fmin(startXPageNo + 1, fmax(projectedXPageNo, startXPageNo - 1));
+    projectedYPageNo = fmin(startYPageNo + 1, fmax(projectedYPageNo, startYPageNo - 1));
+    
+    // calc the actual bounds
+    CGRect pagedBounds = self.bounds;
+    pagedBounds.origin.x = projectedXPageNo * self.bounds.size.width;
+    pagedBounds.origin.y = projectedYPageNo * self.bounds.size.height;
+    
+    [self animateToBounds:pagedBounds
+             withVelocity:velocity
+                 duration:animationDuration];
+}
+
+
+- (void)animateToBounds:(CGRect)bounds
+           withVelocity:(CGPoint)velocity
+               duration:(CGFloat)animationDuration
+{
+    
+    CGFloat xDelta = self.bounds.origin.x - bounds.origin.x;
+    CGFloat yDelta = self.bounds.origin.y - bounds.origin.y;
+    
+    // springVelocity 1 means - velocity of full animation distance travelled in one second
+    // calculate springVelocity as velocity.x / xDelta to make animation start velocity the same as gesture velocity
+    // Example: xDelta = 200, velocity.x = 20 p/s
+    // 1 second 200px, springVelocity = 200 / 20 = 0.1, thus 20 points per 1 second
+    
+    CGFloat springVelocity = 0;
+    // take the maximum of yVelocity and xVelocity. Maybe that would not be geometrically correct
+    // but at this point it'll be alright, since normally we scroll in one direction only
+    if (xDelta > 0) {
+        springVelocity = velocity.x / xDelta;
+    }
+    if (yDelta > 0) {
+        springVelocity = fmax(springVelocity, velocity.y / yDelta);
+    }
+    
+    // use spring animation just because of it's velocity param (thus damping : 1)
+    [UIView animateWithDuration:animationDuration
+                          delay:0
+         usingSpringWithDamping:1
+          initialSpringVelocity:springVelocity
+                        options:UIViewAnimationOptionAllowUserInteraction
+                     animations:^{
+                         self.bounds = bounds;
+                     }
+                     completion:nil];
+    
+}
+
+- (BOOL)outsideBoundsMinimum
+{
+    CGRect bounds = self.bounds;
+    return bounds.origin.x < 0.0 || bounds.origin.y < 0.0;
+}
+
+- (BOOL)outsideBoundsMaximum
+{
+    CGRect bounds = self.bounds;
+    return bounds.origin.x > self.contentSize.width - bounds.size.width || bounds.origin.y > self.contentSize.height - bounds.size.height;
+}
+
+- (BOOL)outsideBounds
+{
+    return [self outsideBoundsMinimum] || [self outsideBoundsMaximum];
+}
+
+
 - (void)setBounds:(CGRect)bounds
 {
     [super setBounds:bounds];
 
-    BOOL outsideBoundsMinimum = bounds.origin.x < 0.0 || bounds.origin.y < 0.0;
-    BOOL outsideBoundsMaximum = bounds.origin.x > self.contentSize.width - bounds.size.width || bounds.origin.y > self.contentSize.height - bounds.size.height;
+    BOOL outsideBoundsMinimum = [self outsideBoundsMinimum];
+    BOOL outsideBoundsMaximum = [self outsideBoundsMaximum];
 
     if (outsideBoundsMaximum || outsideBoundsMinimum) {
         POPDecayAnimation *decayAnimation = [self pop_animationForKey:@"decelerate"];

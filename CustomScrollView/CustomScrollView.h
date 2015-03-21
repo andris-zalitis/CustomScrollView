@@ -14,4 +14,6 @@
 @property (nonatomic) BOOL scrollVertical;
 @property (nonatomic) BOOL scrollHorizontal;
 
+@property (nonatomic, assign) BOOL pagingEnabled;
+
 @end
