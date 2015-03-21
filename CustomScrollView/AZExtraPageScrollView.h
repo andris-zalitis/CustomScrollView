@@ -15,7 +15,10 @@
 @optional
 - (UIView *)firstExtraPageViewForScrollView:(AZExtraPageScrollView *)scrollView;
 - (UIView *)lastExtraPageViewForScrollView:(AZExtraPageScrollView *)scrollView;
+
+- (void)scrollView:(AZExtraPageScrollView *)scrollView extraPageAddedToStart:(BOOL)toStart;
 - (void)scrollView:(AZExtraPageScrollView *)scrollView didScrollToPage:(NSInteger)toPageIndex fromPage:(NSInteger)fromPageIndex;
+
 
 @end
 

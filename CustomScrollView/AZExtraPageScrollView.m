@@ -52,7 +52,8 @@ static const NSInteger ShadowViewTag = 4390470329;
     
     // Add a perspective transform
     CATransform3D transform = CATransform3DIdentity;
-    transform.m34 = -0.005;
+    
+    transform.m34 = self.pageHorizontally ?  -0.005 : - 0.003;
     self.layer.sublayerTransform = transform;
 
 
@@ -102,47 +103,8 @@ static const NSInteger ShadowViewTag = 4390470329;
             [self pop_removeAnimationForKey:@"decelerate"];
             self.startBounds = self.bounds;
             
-            if (!self.firstExtraPageView && [self.delegate respondsToSelector:@selector(firstExtraPageViewForScrollView:)]) {
-                self.firstExtraPageView = [self addShadowToView:[self.delegate firstExtraPageViewForScrollView:self] reverse:NO];
-                
-                CGRect f = CGRectZero;
-                f.size = self.bounds.size;
-                if (self.pageHorizontally) {
-                    f.origin.x = -f.size.width;
-                } else {
-                    f.origin.y = -f.size.height;
-                }
-                self.firstExtraPageView.frame = f;
-                
-                [self addSubview:self.firstExtraPageView];
-                
-                // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
-                self.firstExtraPageView.layer.position = CGPointMake(0, f.size.height/2);
-                self.firstExtraPageView.layer.anchorPoint = CGPointMake(1, 0.5);
-                
-//                self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(-M_PI_2 * 0.3, 0.0, 1.0, 0.0);
+            [self setupNewPageViews];
 
-            }
-            
-            if (!self.lastExtraPageView && [self.delegate respondsToSelector:@selector(lastExtraPageViewForScrollView:)]) {
-                self.lastExtraPageView = [self addShadowToView:[self.delegate lastExtraPageViewForScrollView:self] reverse:YES];
-                
-                CGRect f = CGRectZero;
-                f.size = self.bounds.size;
-                if (self.pageHorizontally) {
-                    f.origin.x = self.contentSize.width;
-                } else {
-                    f.origin.y = self.contentSize.height;
-                }
-                self.lastExtraPageView.frame = f;
-                
-                [self addSubview:self.lastExtraPageView];
-                
-                CGSize viewSize = self.lastExtraPageView.bounds.size;
-                self.lastExtraPageView.layer.position = CGPointMake(self.contentSize.width, viewSize.height/2);
-                self.lastExtraPageView.layer.anchorPoint = CGPointMake(0, 0.5);
-
-            }
             
         }
 
@@ -192,15 +154,25 @@ static const NSInteger ShadowViewTag = 4390470329;
             // if we are outside the bounds - use pop decay animation
             if (outsideBounds) {
                 if ([self outsideBoundsMinimum]) {
-                    CGFloat progress = -self.bounds.origin.x / self.bounds.size.width;
-                    if (progress > 0.5 && velocity.x < 0) {
+                    CGFloat progress;
+                    if (self.pageHorizontally) {
+                        progress = -self.bounds.origin.x / self.bounds.size.width;
+                    } else {
+                        progress = -self.bounds.origin.y / self.bounds.size.height;
+                    }
+                    if (progress > 0.5 && fmin(velocity.x, velocity.y) < 0) {
                         [self includeFirstExtraPageWithVelocity:velocity];
                         return;
                     }
                 }
                 if ([self outsideBoundsMaximum]) {
-                    CGFloat progress = (self.bounds.origin.x + self.bounds.size.width - self.contentSize.width) / self.bounds.size.width;
-                    if (progress > 0.5 && velocity.x > 0) {
+                    CGFloat progress;
+                    if (self.pageHorizontally) {
+                        progress = (self.bounds.origin.x + self.bounds.size.width - self.contentSize.width) / self.bounds.size.width;
+                    } else {
+                        progress = (self.bounds.origin.y + self.bounds.size.height - self.contentSize.height) / self.bounds.size.height;
+                    }
+                    if (progress > 0.5 && fmax(velocity.x, velocity.y) > 0) {
                         [self includeLastExtraPageWithVelocity:velocity];
                         return;
                     }
@@ -224,6 +196,60 @@ static const NSInteger ShadowViewTag = 4390470329;
 
 }
 
+- (void)setupNewPageViews
+{
+    
+    if (!self.firstExtraPageView && [self.delegate respondsToSelector:@selector(firstExtraPageViewForScrollView:)]) {
+        // ask the delegate for the new view and also add shadow to it
+        self.firstExtraPageView = [self addShadowToView:[self.delegate firstExtraPageViewForScrollView:self] reverse:NO];
+        
+        CGRect f = CGRectZero;
+        f.size = self.bounds.size;
+        if (self.pageHorizontally) {
+            f.origin.x = -f.size.width;
+        } else {
+            f.origin.y = -f.size.height;
+        }
+        self.firstExtraPageView.frame = f;
+        
+        [self addSubview:self.firstExtraPageView];
+        
+        if (self.pageHorizontally) {
+            // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
+            self.firstExtraPageView.layer.position = CGPointMake(0, f.size.height/2);
+            self.firstExtraPageView.layer.anchorPoint = CGPointMake(1, 0.5);
+        } else {
+            self.firstExtraPageView.layer.position = CGPointMake(f.size.width/2, 0);
+            self.firstExtraPageView.layer.anchorPoint = CGPointMake(0.5, 1);
+        }
+        
+    }
+    
+    if (!self.lastExtraPageView && [self.delegate respondsToSelector:@selector(lastExtraPageViewForScrollView:)]) {
+        self.lastExtraPageView = [self addShadowToView:[self.delegate lastExtraPageViewForScrollView:self] reverse:YES];
+        
+        CGRect f = CGRectZero;
+        f.size = self.bounds.size;
+        if (self.pageHorizontally) {
+            f.origin.x = self.contentSize.width;
+        } else {
+            f.origin.y = self.contentSize.height;
+        }
+        self.lastExtraPageView.frame = f;
+        
+        [self addSubview:self.lastExtraPageView];
+        
+        if (self.pageHorizontally) {
+            self.lastExtraPageView.layer.position = CGPointMake(self.contentSize.width, f.size.height/2);
+            self.lastExtraPageView.layer.anchorPoint = CGPointMake(0, 0.5);
+        } else {
+            self.lastExtraPageView.layer.position = CGPointMake(f.size.width / 2, self.contentSize.height);
+            self.lastExtraPageView.layer.anchorPoint = CGPointMake(0.5, 0);
+        }
+        
+    }
+}
+
 
 - (void)includeFirstExtraPageWithVelocity:(CGPoint)velocity
 {
@@ -245,12 +271,22 @@ static const NSInteger ShadowViewTag = 4390470329;
                    
                    // reset the origin to 0
                    CGRect bounds = self.bounds;
-                   bounds.origin.x = 0;
+                   if (self.pageHorizontally) {
+                       bounds.origin.x = 0;
+                   } else {
+                       bounds.origin.y = 0;
+                   }
                    self.bounds = bounds;
                    
                    [self normalizeLayerForPageView:self.firstExtraPageView];
 
                    self.firstExtraPageView = nil;
+                   
+                   if ([self.delegate respondsToSelector:@selector(scrollView:extraPageAddedToStart:)]) {
+                       [self.delegate scrollView:self extraPageAddedToStart:YES];
+                   }
+                   
+                   [self notifyOfPageChange];
                }];
 }
 
@@ -271,6 +307,12 @@ static const NSInteger ShadowViewTag = 4390470329;
                    [self increaseContentSizeByPageDelta:1];
                    [self normalizeLayerForPageView:self.lastExtraPageView];
                    self.lastExtraPageView = nil;
+                   
+                   if ([self.delegate respondsToSelector:@selector(scrollView:extraPageAddedToStart:)]) {
+                       [self.delegate scrollView:self extraPageAddedToStart:NO];
+                   }
+                   
+                   [self notifyOfPageChange];
                }];
 }
 
@@ -280,7 +322,11 @@ static const NSInteger ShadowViewTag = 4390470329;
     // move all subviews forward by one page
     for (UIView *subview in self.subviews) {
         CGRect f = subview.frame;
-        f.origin.x += self.bounds.size.width * pageDelta;
+        if (self.pageHorizontally) {
+            f.origin.x += self.bounds.size.width * pageDelta;
+        } else {
+            f.origin.y += self.bounds.size.height * pageDelta;
+        }
         subview.frame = f;
     }
 }
@@ -307,36 +353,68 @@ static const NSInteger ShadowViewTag = 4390470329;
     CGFloat animationDuration = 0.35;
     
     // calculate projected bounds origin
-    CGFloat projectedX = self.bounds.origin.x + velocity.x * animationDuration;
-    CGFloat projectedY = self.bounds.origin.y + velocity.y * animationDuration;
     
-    // check that we don't overshoot with our projected bounds origin coordinates
-    projectedX = fmax(0, fmin(projectedX, self.contentSize.width - self.bounds.size.width));
-    projectedY = fmax(0, fmin(projectedY, self.contentSize.height - self.bounds.size.height));
-    
-    // calculate the target number of page
-    CGFloat projectedXPageNo = roundf(projectedX / self.bounds.size.width);
-    CGFloat projectedYPageNo = roundf(projectedY / self.bounds.size.height);
-    
-    CGFloat startXPageNo = roundf(self.startBounds.origin.x / self.bounds.size.width);
-    CGFloat startYPageNo = roundf(self.startBounds.origin.y / self.bounds.size.height);
+    CGFloat projectedCoordinate;
+    NSInteger projectedPageNo;
+    NSInteger startPageNo;
+    if (self.pageHorizontally) {
+        projectedCoordinate = self.bounds.origin.x + velocity.x * animationDuration;
+        // check that we don't overshoot with our projected bounds origin coordinates
+        projectedCoordinate = fmax(0, fmin(projectedCoordinate, self.contentSize.width - self.bounds.size.width));
+        
+        // calculate the target number of page
+        projectedPageNo = roundf(projectedCoordinate / self.bounds.size.width);
+
+        startPageNo = roundf(self.startBounds.origin.x / self.bounds.size.width);
+    } else {
+        projectedCoordinate = self.bounds.origin.y + velocity.y * animationDuration;
+        projectedCoordinate = fmax(0, fmin(projectedCoordinate, self.contentSize.height - self.bounds.size.height));
+        
+        projectedPageNo = roundf(projectedCoordinate / self.bounds.size.height);
+
+        startPageNo = roundf(self.startBounds.origin.y / self.bounds.size.height);
+    }
     
     // don't allow moving past 1 page at any time
-    projectedXPageNo = fmin(startXPageNo + 1, fmax(projectedXPageNo, startXPageNo - 1));
-    projectedYPageNo = fmin(startYPageNo + 1, fmax(projectedYPageNo, startYPageNo - 1));
+    projectedPageNo = fmin(startPageNo + 1, fmax(projectedPageNo, startPageNo - 1));
+    
     
     // calc the actual bounds
     CGRect pagedBounds = self.bounds;
-    pagedBounds.origin.x = projectedXPageNo * self.bounds.size.width;
-    pagedBounds.origin.y = projectedYPageNo * self.bounds.size.height;
+    if (self.pageHorizontally) {
+        pagedBounds.origin.x = projectedPageNo * self.bounds.size.width;
+    } else {
+        pagedBounds.origin.y = projectedPageNo * self.bounds.size.height;
+    }
     
     [self animateToBounds:pagedBounds
              withVelocity:velocity
                  duration:animationDuration
          allowInteraction:YES
-               completion:nil];
+               completion:^(BOOL finished) {
+                   if (startPageNo != projectedPageNo) {
+                       [self notifyOfPageChange];
+                   }
+               }];
 }
 
+
+- (void)notifyOfPageChange
+{
+    if ([self.delegate respondsToSelector:@selector(scrollView:didScrollToPage:fromPage:)]) {
+        NSInteger startPageNo;
+        NSInteger endPageNo;
+        if (self.pageHorizontally) {
+            startPageNo = roundf(self.startBounds.origin.x / self.bounds.size.width);
+            endPageNo = roundf(self.bounds.origin.x / self.bounds.size.width);
+        } else {
+            startPageNo = roundf(self.startBounds.origin.y / self.bounds.size.height);
+            endPageNo = roundf(self.bounds.origin.y / self.bounds.size.height);
+        }
+        
+        [self.delegate scrollView:self didScrollToPage:endPageNo fromPage:startPageNo];
+    }
+}
 
 - (void)animateToBounds:(CGRect)bounds
            withVelocity:(CGPoint)velocity
@@ -430,12 +508,21 @@ static const NSInteger ShadowViewTag = 4390470329;
     if (outsideBoundsMinimum && self.firstExtraPageView) {
         // we don't start at -90 degrees because that would render the view behind our first view due to the perspective
         // this constant is related to self.layer.sublayerTransform.m34
-        CGFloat startAngle = -M_PI_2 * 0.55;
+        CGFloat startAngle = self.pageHorizontally ? -M_PI_2 * 0.55 : M_PI_2 * 0.55;
         
-        CGFloat progress = -self.bounds.origin.x / self.bounds.size.width;
+        CGFloat progress;
+        if (self.pageHorizontally) {
+            progress = -self.bounds.origin.x / self.bounds.size.width;
+        } else {
+            progress = -self.bounds.origin.y / self.bounds.size.height;
+        }
         CGFloat reverseProgress = 1 - progress;
-        self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
-        
+        if (self.pageHorizontally) {
+            self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
+        } else {
+            self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
+        }
+
         // animate shadow
         UIView *shadowView = [self.firstExtraPageView viewWithTag:ShadowViewTag];
         [shadowView setAlpha:reverseProgress];
@@ -446,11 +533,21 @@ static const NSInteger ShadowViewTag = 4390470329;
     if (outsideBoundsMaximum && self.lastExtraPageView) {
         // we don't start at -90 degrees because that would render the view behind our first view due to the perspective
         // this constant is related to self.layer.sublayerTransform.m34
-        CGFloat startAngle = M_PI_2 * 0.55;
+        CGFloat startAngle = self.pageHorizontally ? M_PI_2 * 0.55 : -M_PI_2 * 0.55;
         
-        CGFloat progress = (self.bounds.origin.x + self.bounds.size.width - self.contentSize.width) / self.bounds.size.width;
+        CGFloat progress;
+        if (self.pageHorizontally) {
+            progress = (self.bounds.origin.x + self.bounds.size.width - self.contentSize.width) / self.bounds.size.width;
+        } else {
+            progress = (self.bounds.origin.y + self.bounds.size.height - self.contentSize.height) / self.bounds.size.height;
+        }
         CGFloat reverseProgress = 1 - progress;
-        self.lastExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
+        if (self.pageHorizontally) {
+            self.lastExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
+        } else {
+            self.lastExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
+        }
+        
         
         // animate shadow
         UIView *shadowView = [self.lastExtraPageView viewWithTag:ShadowViewTag];
