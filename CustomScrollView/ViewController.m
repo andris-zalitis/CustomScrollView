@@ -7,11 +7,11 @@
 //
 
 #import "ViewController.h"
-#import "CustomScrollView.h"
+#import "AZExtraPageScrollView.h"
 
 @interface ViewController ()
 
-@property (nonatomic) CustomScrollView *customScrollView;
+@property (nonatomic) AZExtraPageScrollView *customScrollView;
 
 @end
 
@@ -24,10 +24,11 @@
     
     CGSize s = self.view.bounds.size;
     
-    self.customScrollView = [[CustomScrollView alloc] initWithFrame:self.view.bounds];
+    self.customScrollView = [[AZExtraPageScrollView alloc] initWithFrame:self.view.bounds];
     self.customScrollView.contentSize = CGSizeMake(s.width * 4, s.height);
     self.customScrollView.scrollVertical = NO;
-    self.customScrollView.pagingEnabled = YES;
+    self.customScrollView.pageHorizontally = YES;
+    self.customScrollView.delegate = self;
     
     UIView *redView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, s.width, s.height)];
     UIView *greenView = [[UIView alloc] initWithFrame:CGRectMake(s.width, 0, s.width, s.height)];
@@ -45,6 +46,27 @@
     [self.customScrollView addSubview:yellowView];
 
     [self.view addSubview:self.customScrollView];
+    
 }
+
+- (UIView *)firstExtraPageViewForScrollView:(AZExtraPageScrollView *)scrollView
+{
+    return [self newView];
+}
+
+- (UIView *)lastExtraPageViewForScrollView:(AZExtraPageScrollView *)scrollView
+{
+    return [self newView];
+}
+
+- (UIView *)newView
+{
+    CGSize s = self.view.bounds.size;
+    
+    UIView *newView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, s.width, s.height)];
+    newView.backgroundColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1];
+    return newView;
+}
+
 
 @end

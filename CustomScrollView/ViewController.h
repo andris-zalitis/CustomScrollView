@@ -7,7 +7,8 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "AZExtraPageScrollView.h"
 
-@interface ViewController : UIViewController
+@interface ViewController : UIViewController<AZExtraPageScrollViewDelegate>
 
 @end
