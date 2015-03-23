@@ -9,8 +9,6 @@
 #import "AZExtraPageScrollView.h"
 #import <POP.h>
 
-static const NSInteger ShadowViewTag = 4390470329;
-
 @interface AZExtraPageScrollView ()
 
 @property CGRect startBounds;
@@ -47,12 +45,12 @@ static const NSInteger ShadowViewTag = 4390470329;
 {
     self.scrollHorizontal = YES;
     self.scrollVertical = YES;
-    self.overshootFraction = 0.9;
+    // how far over bounds would a full screen width (or height) drag would get us
+    self.bounceFraction = 0.8;
 
-    
     // Add a perspective transform
     CATransform3D transform = CATransform3DIdentity;
-    
+    // different values for horizontal and vertical paging, purely based on looks and iteration
     transform.m34 = self.pageHorizontally ?  -0.005 : - 0.003;
     self.layer.sublayerTransform = transform;
 
@@ -60,6 +58,29 @@ static const NSInteger ShadowViewTag = 4390470329;
     UIPanGestureRecognizer *panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePanGesture:)];
     [self addGestureRecognizer:panGestureRecognizer];
 }
+
+- (void)setPageCount:(NSInteger)pageCount
+{
+    CGSize s = self.bounds.size;
+    
+    if (self.pageHorizontally) {
+        [self setContentSize:CGSizeMake(s.width * pageCount, s.height)];
+    } else {
+        [self setContentSize:CGSizeMake(s.width, s.height * pageCount)];
+    }
+}
+
+- (void)setCurrentPagePosition:(NSInteger)pagePosition
+{
+    CGRect b = self.bounds;
+    if (self.pageHorizontally) {
+        b.origin.x = pagePosition * b.size.width;
+    } else {
+        b.origin.y = pagePosition * b.size.height;
+    }
+    self.bounds = b;
+}
+
 
 - (POPAnimatableProperty *)boundsOriginProperty
 {
@@ -84,14 +105,17 @@ static const NSInteger ShadowViewTag = 4390470329;
 }
 
 
-- (void)setOvershootFraction:(CGFloat)overshootFraction
+- (void)setBounceFraction:(CGFloat)bounceFraction
 {
-    if (overshootFraction >= 1) {
+    // >= 1 does not make sense
+    if (bounceFraction >= 1) {
         return;
     }
     
-    _overshootFraction = overshootFraction;
+    _bounceFraction = bounceFraction;
 }
+
+#pragma mark - Gesture Handling
 
 
 - (void)handlePanGesture:(UIPanGestureRecognizer *)panGestureRecognizer
@@ -101,10 +125,24 @@ static const NSInteger ShadowViewTag = 4390470329;
         {
             [self pop_removeAnimationForKey:@"bounce"];
             [self pop_removeAnimationForKey:@"decelerate"];
+            // remove ongoing animation to page
+            [self.layer removeAllAnimations];
+            
+            // tell the delegate that we're about to start scrolling
+            if ([self.delegate respondsToSelector:@selector(scrollView:willScrollFromPage:)]) {
+                NSInteger currentPageNo = 0;
+                if (self.pageHorizontally) {
+                    currentPageNo = roundf(self.bounds.origin.x / self.bounds.size.width);
+                } else {
+                    currentPageNo = roundf(self.bounds.origin.y / self.bounds.size.height);
+                }
+                
+                [self.delegate scrollView:self willScrollFromPage:currentPageNo];
+            }
+            
             self.startBounds = self.bounds;
             
-            [self setupNewPageViews];
-
+            [self setupExtraPageViews];
             
         }
 
@@ -124,17 +162,18 @@ static const NSInteger ShadowViewTag = 4390470329;
             CGFloat minBoundsOriginX = 0.0;
             CGFloat maxBoundsOriginX = self.contentSize.width - bounds.size.width;
             CGFloat constrainedBoundsOriginX = fmax(minBoundsOriginX, fmin(newBoundsOriginX, maxBoundsOriginX));
-            bounds.origin.x = constrainedBoundsOriginX + (newBoundsOriginX - constrainedBoundsOriginX) * self.overshootFraction;
+            bounds.origin.x = constrainedBoundsOriginX + (newBoundsOriginX - constrainedBoundsOriginX) * self.bounceFraction;
 
             CGFloat newBoundsOriginY = bounds.origin.y - translation.y;
             CGFloat minBoundsOriginY = 0.0;
             CGFloat maxBoundsOriginY = self.contentSize.height - bounds.size.height;
             CGFloat constrainedBoundsOriginY = fmax(minBoundsOriginY, fmin(newBoundsOriginY, maxBoundsOriginY));
-            bounds.origin.y = constrainedBoundsOriginY + (newBoundsOriginY - constrainedBoundsOriginY) * self.overshootFraction;
+            bounds.origin.y = constrainedBoundsOriginY + (newBoundsOriginY - constrainedBoundsOriginY) * self.bounceFraction;
 
             self.bounds = bounds;
         }
             break;
+            
         case UIGestureRecognizerStateEnded:
         {
             CGPoint velocity = [panGestureRecognizer velocityInView:self];
@@ -148,12 +187,12 @@ static const NSInteger ShadowViewTag = 4390470329;
 
             velocity.x = -velocity.x;
             velocity.y = -velocity.y;
-            NSLog(@"decelerating with velocity: %@", NSStringFromCGPoint(velocity));
+//            NSLog(@"decelerating with velocity: %@", NSStringFromCGPoint(velocity));
 
             BOOL outsideBounds = [self outsideBounds];
             // if we are outside the bounds - use pop decay animation
             if (outsideBounds) {
-                if ([self outsideBoundsMinimum]) {
+                if (self.firstExtraPageView && [self outsideBoundsMinimum]) {
                     CGFloat progress;
                     if (self.pageHorizontally) {
                         progress = -self.bounds.origin.x / self.bounds.size.width;
@@ -165,7 +204,7 @@ static const NSInteger ShadowViewTag = 4390470329;
                         return;
                     }
                 }
-                if ([self outsideBoundsMaximum]) {
+                if (self.lastExtraPageView && [self outsideBoundsMaximum]) {
                     CGFloat progress;
                     if (self.pageHorizontally) {
                         progress = (self.bounds.origin.x + self.bounds.size.width - self.contentSize.width) / self.bounds.size.width;
@@ -196,59 +235,86 @@ static const NSInteger ShadowViewTag = 4390470329;
 
 }
 
-- (void)setupNewPageViews
+#pragma mark - Adding Views
+
+
+- (void)setPageView:(UIView *)view atIndex:(NSInteger)pageIndex
 {
+    CGRect f = self.bounds;
     
-    if (!self.firstExtraPageView && [self.delegate respondsToSelector:@selector(firstExtraPageViewForScrollView:)]) {
-        // ask the delegate for the new view and also add shadow to it
-        self.firstExtraPageView = [self addShadowToView:[self.delegate firstExtraPageViewForScrollView:self] reverse:NO];
-        
-        CGRect f = CGRectZero;
-        f.size = self.bounds.size;
-        if (self.pageHorizontally) {
-            f.origin.x = -f.size.width;
-        } else {
-            f.origin.y = -f.size.height;
-        }
-        self.firstExtraPageView.frame = f;
-        
-        [self addSubview:self.firstExtraPageView];
-        
-        if (self.pageHorizontally) {
-            // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
-            self.firstExtraPageView.layer.position = CGPointMake(0, f.size.height/2);
-            self.firstExtraPageView.layer.anchorPoint = CGPointMake(1, 0.5);
-        } else {
-            self.firstExtraPageView.layer.position = CGPointMake(f.size.width/2, 0);
-            self.firstExtraPageView.layer.anchorPoint = CGPointMake(0.5, 1);
-        }
-        
+    if (self.pageHorizontally) {
+        f.origin.x = pageIndex * self.bounds.size.width;
+    } else {
+        f.origin.y = pageIndex * self.bounds.size.height;
     }
     
-    if (!self.lastExtraPageView && [self.delegate respondsToSelector:@selector(lastExtraPageViewForScrollView:)]) {
-        self.lastExtraPageView = [self addShadowToView:[self.delegate lastExtraPageViewForScrollView:self] reverse:YES];
-        
-        CGRect f = CGRectZero;
-        f.size = self.bounds.size;
-        if (self.pageHorizontally) {
-            f.origin.x = self.contentSize.width;
-        } else {
-            f.origin.y = self.contentSize.height;
+    view.frame = f;
+    
+    [self addSubview:view];
+}
+
+- (void)setupExtraPageViews
+{
+    if (! [self.delegate respondsToSelector:@selector(scrollView:extraPageViewAtPosition:)]) {
+        return;
+    }
+    
+    if (!self.firstExtraPageView) {
+        // ask the delegate for the new view and also add shadow to it
+        UIView *extraPageView = [self.delegate scrollView:self extraPageViewAtPosition:AZExtraPagePositionFirst];
+        if (extraPageView) {
+            self.firstExtraPageView = [self addShadowToView:extraPageView reverse:NO];
+            
+            [self addSubview:self.firstExtraPageView];
         }
-        self.lastExtraPageView.frame = f;
-        
+    }
+            
+    CGRect f = CGRectZero;
+    f.size = self.bounds.size;
+    if (self.pageHorizontally) {
+        f.origin.x = -f.size.width;
+    } else {
+        f.origin.y = -f.size.height;
+    }
+    self.firstExtraPageView.frame = f;
+    
+    if (self.pageHorizontally) {
+        // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
+        self.firstExtraPageView.layer.position = CGPointMake(0, f.size.height/2);
+        self.firstExtraPageView.layer.anchorPoint = CGPointMake(1, 0.5);
+    } else {
+        self.firstExtraPageView.layer.position = CGPointMake(f.size.width/2, 0);
+        self.firstExtraPageView.layer.anchorPoint = CGPointMake(0.5, 1);
+    }
+    
+    if (!self.lastExtraPageView) {
+        UIView *extraPageView = [self.delegate scrollView:self extraPageViewAtPosition:AZExtraPagePositionLast];
+        if (extraPageView) {
+            self.lastExtraPageView = [self addShadowToView:extraPageView reverse:YES];
+        }
         [self addSubview:self.lastExtraPageView];
-        
-        if (self.pageHorizontally) {
-            self.lastExtraPageView.layer.position = CGPointMake(self.contentSize.width, f.size.height/2);
-            self.lastExtraPageView.layer.anchorPoint = CGPointMake(0, 0.5);
-        } else {
-            self.lastExtraPageView.layer.position = CGPointMake(f.size.width / 2, self.contentSize.height);
-            self.lastExtraPageView.layer.anchorPoint = CGPointMake(0.5, 0);
-        }
-        
+    }
+    
+    // the content size may change so on each gesture start, make sure our extra page view is positioned correctly (at the end)
+    f.size = self.bounds.size;
+    if (self.pageHorizontally) {
+        f.origin.x = self.contentSize.width;
+    } else {
+        f.origin.y = self.contentSize.height;
+    }
+    self.lastExtraPageView.frame = f;
+    
+
+    if (self.pageHorizontally) {
+        self.lastExtraPageView.layer.position = CGPointMake(self.contentSize.width, f.size.height/2);
+        self.lastExtraPageView.layer.anchorPoint = CGPointMake(0, 0.5);
+    } else {
+        self.lastExtraPageView.layer.position = CGPointMake(f.size.width / 2, self.contentSize.height);
+        self.lastExtraPageView.layer.anchorPoint = CGPointMake(0.5, 0);
     }
 }
+
+#pragma mark - 
 
 
 - (void)includeFirstExtraPageWithVelocity:(CGPoint)velocity
@@ -265,7 +331,7 @@ static const NSInteger ShadowViewTag = 4390470329;
                  duration:0.35
          allowInteraction:NO
                completion:^(BOOL finished) {
-                   [self moveAllPageViewsByPageDelta:+1];
+                   [self shiftAllPageViewsByPageDelta:+1];
                    
                    [self increaseContentSizeByPageDelta:1];
                    
@@ -279,12 +345,14 @@ static const NSInteger ShadowViewTag = 4390470329;
                    self.bounds = bounds;
                    
                    [self normalizeLayerForPageView:self.firstExtraPageView];
-
-                   self.firstExtraPageView = nil;
                    
-                   if ([self.delegate respondsToSelector:@selector(scrollView:extraPageAddedToStart:)]) {
-                       [self.delegate scrollView:self extraPageAddedToStart:YES];
+                   if ([self.delegate respondsToSelector:@selector(scrollView:extraPageView:addedAtPosition:)]) {
+                       [self.delegate scrollView:self
+                                   extraPageView:self.firstExtraPageView
+                                 addedAtPosition:AZExtraPagePositionFirst];
                    }
+                   
+                   self.firstExtraPageView = nil;
                    
                    [self notifyOfPageChange];
                }];
@@ -306,18 +374,21 @@ static const NSInteger ShadowViewTag = 4390470329;
                completion:^(BOOL finished) {
                    [self increaseContentSizeByPageDelta:1];
                    [self normalizeLayerForPageView:self.lastExtraPageView];
-                   self.lastExtraPageView = nil;
                    
-                   if ([self.delegate respondsToSelector:@selector(scrollView:extraPageAddedToStart:)]) {
-                       [self.delegate scrollView:self extraPageAddedToStart:NO];
+                   if ([self.delegate respondsToSelector:@selector(scrollView:extraPageView:addedAtPosition:)]) {
+                       [self.delegate scrollView:self
+                                   extraPageView:self.lastExtraPageView
+                                 addedAtPosition:AZExtraPagePositionLast];
                    }
+                   
+                   self.lastExtraPageView = nil;
                    
                    [self notifyOfPageChange];
                }];
 }
 
 
-- (void)moveAllPageViewsByPageDelta:(NSInteger)pageDelta
+- (void)shiftAllPageViewsByPageDelta:(NSInteger)pageDelta
 {
     // move all subviews forward by one page
     for (UIView *subview in self.subviews) {
@@ -392,7 +463,10 @@ static const NSInteger ShadowViewTag = 4390470329;
                  duration:animationDuration
          allowInteraction:YES
                completion:^(BOOL finished) {
-                   if (startPageNo != projectedPageNo) {
+                   NSLog(@"Finished page animation:%d", finished);
+                   // if a new gesture has been started while animation was ongoing we can't notify of page change
+                   // we'll handle the next page and notify then, that's why we may have cancelled this animation, so check for finished
+                   if (finished && startPageNo != projectedPageNo) {
                        [self notifyOfPageChange];
                    }
                }];
@@ -410,6 +484,10 @@ static const NSInteger ShadowViewTag = 4390470329;
         } else {
             startPageNo = roundf(self.startBounds.origin.y / self.bounds.size.height);
             endPageNo = roundf(self.bounds.origin.y / self.bounds.size.height);
+        }
+        
+        if (startPageNo == endPageNo) {
+            NSLog(@"bububu");
         }
         
         [self.delegate scrollView:self didScrollToPage:endPageNo fromPage:startPageNo];
@@ -491,7 +569,7 @@ static const NSInteger ShadowViewTag = 4390470329;
                 target.y = fmin(target.y, self.contentSize.height - bounds.size.height);
             }
 
-            NSLog(@"bouncing with velocity: %@", decayAnimation.velocity);
+            //NSLog(@"bouncing with velocity: %@", decayAnimation.velocity);
 
             POPSpringAnimation *springAnimation = [POPSpringAnimation animation];
             springAnimation.property = [self boundsOriginProperty];
@@ -523,8 +601,8 @@ static const NSInteger ShadowViewTag = 4390470329;
             self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
         }
 
-        // animate shadow
-        UIView *shadowView = [self.firstExtraPageView viewWithTag:ShadowViewTag];
+        // animate shadow. Shadow is the second view added on top of extra page view returned by delegate
+        UIView *shadowView = self.firstExtraPageView.subviews[1];
         [shadowView setAlpha:reverseProgress];
     }
     
@@ -550,7 +628,7 @@ static const NSInteger ShadowViewTag = 4390470329;
         
         
         // animate shadow
-        UIView *shadowView = [self.lastExtraPageView viewWithTag:ShadowViewTag];
+        UIView *shadowView = self.lastExtraPageView.subviews[1];
         [shadowView setAlpha:reverseProgress];
     }
 
@@ -571,7 +649,7 @@ static const NSInteger ShadowViewTag = 4390470329;
     
     // create a shadow
     UIView *shadowView = [[UIView alloc] initWithFrame:viewWithShadow.bounds];
-    shadowView.tag = ShadowViewTag;
+//    shadowView.tag = ShadowViewTag;
     
     CAGradientLayer *gradient = [CAGradientLayer layer];
     gradient.frame = shadowView.bounds;

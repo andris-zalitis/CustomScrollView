@@ -17,6 +17,10 @@
 		5D3A783E18FF1912006CCAB3 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D3A783D18FF1912006CCAB3 /* ViewController.m */; };
 		5D3A784018FF1912006CCAB3 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D3A783F18FF1912006CCAB3 /* Images.xcassets */; };
 		5D3A785E18FF1923006CCAB3 /* AZExtraPageScrollView.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D3A785D18FF1923006CCAB3 /* AZExtraPageScrollView.m */; };
+		81F5B77B1ABEB9E3002A0420 /* AZExtraPageViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 81F5B77A1ABEB9E3002A0420 /* AZExtraPageViewController.m */; };
+		81F5B77D1ABF274C002A0420 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81F5B77C1ABF274C002A0420 /* Main.storyboard */; };
+		81F5B7BD1ABF299E002A0420 /* DataViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 81F5B7BA1ABF299E002A0420 /* DataViewController.m */; };
+		81F5B7BE1ABF299E002A0420 /* ModelController.m in Sources */ = {isa = PBXBuildFile; fileRef = 81F5B7BC1ABF299E002A0420 /* ModelController.m */; };
 		F981C00E1914449600EF08E0 /* Podfile in Resources */ = {isa = PBXBuildFile; fileRef = F981C00D1914449600EF08E0 /* Podfile */; };
 /* End PBXBuildFile section */
 
@@ -38,6 +42,13 @@
 		5D3A784618FF1912006CCAB3 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		5D3A785C18FF1923006CCAB3 /* AZExtraPageScrollView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AZExtraPageScrollView.h; sourceTree = "<group>"; };
 		5D3A785D18FF1923006CCAB3 /* AZExtraPageScrollView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AZExtraPageScrollView.m; sourceTree = "<group>"; };
+		81F5B7791ABEB9E3002A0420 /* AZExtraPageViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AZExtraPageViewController.h; sourceTree = "<group>"; };
+		81F5B77A1ABEB9E3002A0420 /* AZExtraPageViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AZExtraPageViewController.m; sourceTree = "<group>"; };
+		81F5B77C1ABF274C002A0420 /* Main.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
+		81F5B7B91ABF299E002A0420 /* DataViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DataViewController.h; sourceTree = "<group>"; };
+		81F5B7BA1ABF299E002A0420 /* DataViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DataViewController.m; sourceTree = "<group>"; };
+		81F5B7BB1ABF299E002A0420 /* ModelController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ModelController.h; sourceTree = "<group>"; };
+		81F5B7BC1ABF299E002A0420 /* ModelController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ModelController.m; sourceTree = "<group>"; };
 		E99A5BEDCD24EC601489C48C /* Pods.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.debug.xcconfig; path = "Pods/Target Support Files/Pods/Pods.debug.xcconfig"; sourceTree = "<group>"; };
 		F559BD8877140A86D5189309 /* Pods.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.release.xcconfig; path = "Pods/Target Support Files/Pods/Pods.release.xcconfig"; sourceTree = "<group>"; };
 		F981C00D1914449600EF08E0 /* Podfile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Podfile; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
@@ -96,8 +107,15 @@
 				5D3A783718FF1912006CCAB3 /* AppDelegate.m */,
 				5D3A783C18FF1912006CCAB3 /* ViewController.h */,
 				5D3A783D18FF1912006CCAB3 /* ViewController.m */,
+				81F5B7B91ABF299E002A0420 /* DataViewController.h */,
+				81F5B7BA1ABF299E002A0420 /* DataViewController.m */,
+				81F5B7BB1ABF299E002A0420 /* ModelController.h */,
+				81F5B7BC1ABF299E002A0420 /* ModelController.m */,
+				81F5B7791ABEB9E3002A0420 /* AZExtraPageViewController.h */,
+				81F5B77A1ABEB9E3002A0420 /* AZExtraPageViewController.m */,
 				5D3A785C18FF1923006CCAB3 /* AZExtraPageScrollView.h */,
 				5D3A785D18FF1923006CCAB3 /* AZExtraPageScrollView.m */,
+				81F5B77C1ABF274C002A0420 /* Main.storyboard */,
 				5D3A783F18FF1912006CCAB3 /* Images.xcassets */,
 				5D3A782E18FF1912006CCAB3 /* Supporting Files */,
 			);
@@ -181,6 +199,7 @@
 				F981C00E1914449600EF08E0 /* Podfile in Resources */,
 				5D3A784018FF1912006CCAB3 /* Images.xcassets in Resources */,
 				5D3A783218FF1912006CCAB3 /* InfoPlist.strings in Resources */,
+				81F5B77D1ABF274C002A0420 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,7 +243,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				81F5B7BE1ABF299E002A0420 /* ModelController.m in Sources */,
 				5D3A783E18FF1912006CCAB3 /* ViewController.m in Sources */,
+				81F5B77B1ABEB9E3002A0420 /* AZExtraPageViewController.m in Sources */,
+				81F5B7BD1ABF299E002A0420 /* DataViewController.m in Sources */,
 				5D3A783818FF1912006CCAB3 /* AppDelegate.m in Sources */,
 				5D3A785E18FF1923006CCAB3 /* AZExtraPageScrollView.m in Sources */,
 				5D3A783418FF1912006CCAB3 /* main.m in Sources */,
