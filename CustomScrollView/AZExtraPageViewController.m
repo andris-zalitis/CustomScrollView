@@ -18,8 +18,8 @@
 {
     NSMutableArray *_viewControllers;
     NSInteger _currentViewControllerNo;
-    UIViewController *_firstExtraPageViewController;
-    UIViewController *_lastExtraPageViewController;
+//    UIViewController *_firstExtraPageViewController;
+//    UIViewController *_lastExtraPageViewController;
 }
 //
 //- (id)initWithCoder:(NSCoder *)aDecoder
@@ -80,16 +80,17 @@
     UIViewController *previousVC = [self.dataSource pageViewController:self viewControllerBeforeViewController:currentViewController];
     if (previousVC) {
         [self addChildViewController:previousVC atIndex:viewControllerNo];
-        _viewControllers[viewControllerNo] = previousVC;
+//        _viewControllers[viewControllerNo] = previousVC;
         ++viewControllerNo;
     }
     
     
     // add current vc
-    [self addChildViewController:currentViewController];
-    [self.scrollView setPageView:currentViewController.view atIndex:viewControllerNo];
-    [currentViewController didMoveToParentViewController:self];
-    _viewControllers[viewControllerNo] = currentViewController;
+    [self addChildViewController:currentViewController atIndex:viewControllerNo];
+//    [self addChildViewController:currentViewController];
+//    [self.scrollView setPageView:currentViewController.view atIndex:viewControllerNo];
+//    [currentViewController didMoveToParentViewController:self];
+//    _viewControllers[viewControllerNo] = currentViewController;
     _currentViewControllerNo = viewControllerNo;
     ++viewControllerNo;
     
@@ -98,7 +99,7 @@
     UIViewController *nextVC = [self.dataSource pageViewController:self viewControllerAfterViewController:currentViewController];
     if (nextVC) {
         [self addChildViewController:nextVC atIndex:viewControllerNo];
-        _viewControllers[viewControllerNo] = nextVC;
+//        _viewControllers[viewControllerNo] = nextVC;
         ++viewControllerNo;
     }
 
@@ -139,6 +140,18 @@
     }
 }
 
+#pragma mark - 
+
+- (void)removeCurrentViewControllerWithAnimation
+{
+    UIViewController *viewController = [self currentViewController];
+    
+    [self.scrollView deletePageViewWithAnimation:viewController.view];
+
+    [viewController removeFromParentViewController];
+
+}
+
 #pragma mark - AZExtraPageScrollViewDelegate
 
 - (void)scrollView:(AZExtraPageScrollView *)scrollView willScrollFromPage:(NSInteger)fromPageIndex
@@ -152,39 +165,49 @@
 {
     NSLog(@"didScrollToPage:%ld fromPage:%ld", toPageIndex, fromPageIndex);
 
-    [self ensurePrevNextForPageIndex:fromPageIndex];
+    _currentViewControllerNo = toPageIndex;
+    
+    [self ensurePrevNextForPageIndex:toPageIndex];
+    
+    if ([self.delegate respondsToSelector:@selector(pageViewController:scrolledToViewController:)]) {
+        [self.delegate pageViewController:self scrolledToViewController:_viewControllers[toPageIndex]];
+    }
 }
 
 - (UIView *)scrollView:(AZExtraPageScrollView *)scrollView extraPageViewAtPosition:(AZExtraPagePosition)position
 {
     if (position == AZExtraPagePositionFirst) {
-        if (! [self.dataSource respondsToSelector:@selector(pageViewController:extraViewControllerBeforeViewController:)]) {
+        if (! [self.dataSource respondsToSelector:@selector(pageViewController:extraViewBeforeViewController:)]) {
             return nil;
         }
         
-        UIViewController *vc = [self.dataSource pageViewController:self
-                           extraViewControllerBeforeViewController:_viewControllers[0]];
+        UIView *view = [self.dataSource pageViewController:self
+                             extraViewBeforeViewController:_viewControllers[0]];
         
-        vc.view.bounds = CGRectMake(0, 0, self.scrollView.bounds.size.width, self.scrollView.bounds.size.height);
-        UIView *snapshotView = [vc.view snapshotViewAfterScreenUpdates:YES];
-        
-        _firstExtraPageViewController = vc;
-        
-        return snapshotView;
+        return view;
+//        
+//        vc.view.frame = CGRectMake(0, 0, self.scrollView.bounds.size.width, self.scrollView.bounds.size.height);
+//        UIView *snapshotView = [vc.view snapshotViewAfterScreenUpdates:YES];
+//        
+//        _firstExtraPageViewController = vc;
+//        
+//        return snapshotView;
     } else if (position == AZExtraPagePositionLast) {
-        if (! [self.dataSource respondsToSelector:@selector(pageViewController:extraViewControllerAfterViewController:)]) {
+        if (! [self.dataSource respondsToSelector:@selector(pageViewController:extraViewAfterViewController:)]) {
             return nil;
         }
         
-        UIViewController *vc = [self.dataSource pageViewController:self
-                            extraViewControllerAfterViewController:_viewControllers[[_viewControllers count] - 1]];
+        UIView *view = [self.dataSource pageViewController:self
+                              extraViewAfterViewController:_viewControllers[[_viewControllers count] - 1]];
         
-        vc.view.bounds = CGRectMake(0, 0, self.scrollView.bounds.size.width, self.scrollView.bounds.size.height);
-        UIView *snapshotView = [vc.view snapshotViewAfterScreenUpdates:YES];
-        
-        _lastExtraPageViewController = vc;
-        
-        return snapshotView;
+        return view;
+//        
+//        vc.view.frame = CGRectMake(0, 0, self.scrollView.bounds.size.width, self.scrollView.bounds.size.height);
+//        UIView *snapshotView = [vc.view snapshotViewAfterScreenUpdates:YES];
+//        
+//        _lastExtraPageViewController = vc;
+//        
+//        return snapshotView;
     }
     
     return nil;
@@ -192,12 +215,18 @@
 
 - (void)scrollView:(AZExtraPageScrollView *)scrollView extraPageView:(UIView *)pageView addedAtPosition:(AZExtraPagePosition)position
 {
-    if (position == AZExtraPagePositionFirst && _firstExtraPageViewController) {
+    if (position == AZExtraPagePositionFirst) {
         // remove the snapshot view encapsulation, we'll replace that with the actual view of the view controller
         [pageView removeFromSuperview];
+
+        if (! [self.dataSource respondsToSelector:@selector(pageViewController:extraViewControllerBeforeViewController:)]) {
+            return;
+        }
+
+        UIViewController *vc = [self.dataSource pageViewController:self
+                           extraViewControllerBeforeViewController:_viewControllers[0]];
         
-        [self addChildViewController:_firstExtraPageViewController atIndex:0];
-        _firstExtraPageViewController = nil;
+        [self addChildViewController:vc atIndex:0];
         
         if ([_viewControllers count] > 3) {
             [self removeViewControllerAtIndex:[_viewControllers count] - 1];
@@ -207,11 +236,13 @@
         [self.scrollView setPageCount:[_viewControllers count]];
         
         _currentViewControllerNo = 0;
-    } else if (position == AZExtraPagePositionLast && _lastExtraPageViewController) {
+    } else if (position == AZExtraPagePositionLast) {
         [pageView removeFromSuperview];
+        
+        UIViewController *vc = [self.dataSource pageViewController:self
+                            extraViewControllerAfterViewController:_viewControllers[[_viewControllers count] - 1]];
 
-        [self addChildViewController:_lastExtraPageViewController atIndex:[_viewControllers count]];
-        _lastExtraPageViewController = nil;
+        [self addChildViewController:vc atIndex:[_viewControllers count]];
         
         if ([_viewControllers count] > 3) {
             [self removeViewControllerAtIndex:0];
@@ -223,6 +254,13 @@
         _currentViewControllerNo = [_viewControllers count] - 1;
         // if we shifted the views back, we would need to update the bounds origin too
         [self.scrollView setCurrentPagePosition:_currentViewControllerNo];
+    }
+}
+
+- (void)scrollView:(AZExtraPageScrollView *)scrollView rubberBandDraggedAtRelativePosition:(float)rubbedBandRelativePosition
+{
+    if ([self.delegate respondsToSelector:@selector(pageViewController:rubberBandDraggedAtRelativePosition:)]) {
+        [self.delegate pageViewController:self rubberBandDraggedAtRelativePosition:rubbedBandRelativePosition];
     }
 }
 

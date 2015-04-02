@@ -31,6 +31,8 @@ typedef enum : NSUInteger {
 - (void)scrollView:(AZExtraPageScrollView *)scrollView didScrollToPage:(NSInteger)toPageIndex fromPage:(NSInteger)fromPageIndex;
 - (void)scrollView:(AZExtraPageScrollView *)scrollView willScrollFromPage:(NSInteger)fromPageIndex;
 
+- (void)scrollView:(AZExtraPageScrollView *)scrollView rubberBandDraggedAtRelativePosition:(float)rubbedBandRelativePosition;
+
 @end
 
 
@@ -49,5 +51,7 @@ typedef enum : NSUInteger {
 - (void)setPageCount:(NSInteger)pageCount;
 - (void)setCurrentPagePosition:(NSInteger)pagePosition;
 - (void)shiftAllPageViewsByPageDelta:(NSInteger)pageDelta;
+
+- (void)deletePageViewWithAnimation:(UIView *)view;
 
 @end

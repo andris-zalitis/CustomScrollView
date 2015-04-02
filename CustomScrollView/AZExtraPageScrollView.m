@@ -18,6 +18,9 @@
 @end
 
 @implementation AZExtraPageScrollView
+{
+    CGRect _usedBoundsForSubviewLayout;
+}
 
 - (id)initWithFrame:(CGRect)frame
 {
@@ -49,14 +52,22 @@
     self.bounceFraction = 0.8;
 
     // Add a perspective transform
-    CATransform3D transform = CATransform3DIdentity;
+//    CATransform3D transform = CATransform3DIdentity;
     // different values for horizontal and vertical paging, purely based on looks and iteration
-    transform.m34 = self.pageHorizontally ?  -0.005 : - 0.003;
-    self.layer.sublayerTransform = transform;
+//    transform.m34 = self.pageHorizontally ?  -0.005 : - 0.003;
+//    self.layer.sublayerTransform = transform;
 
 
     UIPanGestureRecognizer *panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePanGesture:)];
     [self addGestureRecognizer:panGestureRecognizer];
+}
+
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+    
+    NSLog(@"layout subviews");
+    [self repositionPagesForCurrentBounds];
 }
 
 - (void)setPageCount:(NSInteger)pageCount
@@ -68,6 +79,8 @@
     } else {
         [self setContentSize:CGSizeMake(s.width, s.height * pageCount)];
     }
+    
+    _usedBoundsForSubviewLayout = self.bounds;
 }
 
 - (void)setCurrentPagePosition:(NSInteger)pagePosition
@@ -79,6 +92,8 @@
         b.origin.y = pagePosition * b.size.height;
     }
     self.bounds = b;
+    
+    _usedBoundsForSubviewLayout = self.bounds;
 }
 
 
@@ -237,9 +252,40 @@
 
 #pragma mark - Adding Views
 
+- (void)repositionPagesForCurrentBounds
+{
+    if ((self.pageHorizontally && _usedBoundsForSubviewLayout.size.width != self.bounds.size.width) ||
+        (! self.pageHorizontally && _usedBoundsForSubviewLayout.size.height != self.bounds.size.height)) {
+        for (UIView *subview in self.subviews) {
+            CGRect f = subview.frame;
+            if (self.pageHorizontally) {
+                f.origin.x = f.origin.x / _usedBoundsForSubviewLayout.size.width * self.bounds.size.width;
+                f.size.width = self.bounds.size.width;
+            } else {
+                f.origin.y = f.origin.y / _usedBoundsForSubviewLayout.size.height * self.bounds.size.height;
+                f.size.height = self.bounds.size.height;
+            }
+            subview.frame = f;
+        }
+        
+        if (self.pageHorizontally) {
+            float oldWidth = _usedBoundsForSubviewLayout.size.width;
+            [self setPageCount:roundf(self.contentSize.width / oldWidth)];
+            [self setCurrentPagePosition:roundf(self.bounds.origin.x / oldWidth)];
+        } else {
+            float oldHeight = _usedBoundsForSubviewLayout.size.height;
+            [self setPageCount:roundf(self.contentSize.height / oldHeight)];
+            [self setCurrentPagePosition:roundf(self.bounds.origin.y / oldHeight)];
+        }
+    }
+    _usedBoundsForSubviewLayout = self.bounds;
+}
+
 
 - (void)setPageView:(UIView *)view atIndex:(NSInteger)pageIndex
 {
+//    [self repositionPagesForCurrentBounds];
+    
     CGRect f = self.bounds;
     
     if (self.pageHorizontally) {
@@ -251,6 +297,8 @@
     view.frame = f;
     
     [self addSubview:view];
+    
+    _usedBoundsForSubviewLayout = self.bounds;
 }
 
 - (void)setupExtraPageViews
@@ -263,10 +311,25 @@
         // ask the delegate for the new view and also add shadow to it
         UIView *extraPageView = [self.delegate scrollView:self extraPageViewAtPosition:AZExtraPagePositionFirst];
         if (extraPageView) {
-            self.firstExtraPageView = [self addShadowToView:extraPageView reverse:NO];
+            extraPageView.frame = CGRectMake(0, 0, self.bounds.size.width, self.bounds.size.height);
+            UIView *snapshotView = [extraPageView snapshotViewAfterScreenUpdates:YES];
+            UIView *shadowedView = [self addShadowToView:snapshotView reverse:NO];
             
+            self.firstExtraPageView = [self addPerspectiveToView:shadowedView];
+
             [self addSubview:self.firstExtraPageView];
+        
+            if (self.pageHorizontally) {
+                // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
+                shadowedView.layer.position = CGPointMake(shadowedView.bounds.size.width, shadowedView.bounds.size.height/2);
+                shadowedView.layer.anchorPoint = CGPointMake(1, 0.5);
+            } else {
+                shadowedView.layer.position = CGPointMake(shadowedView.bounds.size.width / 2, shadowedView.bounds.size.height);
+                shadowedView.layer.anchorPoint = CGPointMake(0.5, 1);
+            }
+        
         }
+
     }
             
     CGRect f = CGRectZero;
@@ -278,21 +341,28 @@
     }
     self.firstExtraPageView.frame = f;
     
-    if (self.pageHorizontally) {
-        // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
-        self.firstExtraPageView.layer.position = CGPointMake(0, f.size.height/2);
-        self.firstExtraPageView.layer.anchorPoint = CGPointMake(1, 0.5);
-    } else {
-        self.firstExtraPageView.layer.position = CGPointMake(f.size.width/2, 0);
-        self.firstExtraPageView.layer.anchorPoint = CGPointMake(0.5, 1);
-    }
+    
     
     if (!self.lastExtraPageView) {
         UIView *extraPageView = [self.delegate scrollView:self extraPageViewAtPosition:AZExtraPagePositionLast];
         if (extraPageView) {
-            self.lastExtraPageView = [self addShadowToView:extraPageView reverse:YES];
+            extraPageView.frame = CGRectMake(0, 0, self.bounds.size.width, self.bounds.size.height);
+            UIView *snapshotView = [extraPageView snapshotViewAfterScreenUpdates:YES];
+            
+            UIView *shadowedView = [self addShadowToView:snapshotView reverse:YES];
+            self.lastExtraPageView = [self addPerspectiveToView:shadowedView];
+            
+            [self addSubview:self.lastExtraPageView];
+            
+            if (self.pageHorizontally) {
+                // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
+                shadowedView.layer.position = CGPointMake(0, shadowedView.bounds.size.height/2);
+                shadowedView.layer.anchorPoint = CGPointMake(0, 0.5);
+            } else {
+                shadowedView.layer.position = CGPointMake(shadowedView.bounds.size.width / 2, 0);
+                shadowedView.layer.anchorPoint = CGPointMake(0.5, 0);
+            }
         }
-        [self addSubview:self.lastExtraPageView];
     }
     
     // the content size may change so on each gesture start, make sure our extra page view is positioned correctly (at the end)
@@ -305,13 +375,6 @@
     self.lastExtraPageView.frame = f;
     
 
-    if (self.pageHorizontally) {
-        self.lastExtraPageView.layer.position = CGPointMake(self.contentSize.width, f.size.height/2);
-        self.lastExtraPageView.layer.anchorPoint = CGPointMake(0, 0.5);
-    } else {
-        self.lastExtraPageView.layer.position = CGPointMake(f.size.width / 2, self.contentSize.height);
-        self.lastExtraPageView.layer.anchorPoint = CGPointMake(0.5, 0);
-    }
 }
 
 #pragma mark - 
@@ -386,6 +449,92 @@
                    [self notifyOfPageChange];
                }];
 }
+
+#pragma mark - 
+
+- (void)deletePageViewWithAnimation:(UIView *)view
+{
+    if (self.pageHorizontally) {
+        CGSize viewSize = view.bounds.size;
+        
+        UIView *transformedPageView = [[UIView alloc] initWithFrame:view.frame];
+        transformedPageView.backgroundColor = [UIColor clearColor];
+        // Add a perspective transform
+        CATransform3D transform = CATransform3DIdentity;
+        // different values for horizontal and vertical paging, purely based on looks and iteration
+        transform.m34 = self.pageHorizontally ?  -0.005 : - 0.003;
+        transformedPageView.layer.sublayerTransform = transform;
+        
+        // create a regular snapshot
+        CGRect snapshotRegion = CGRectMake(0, 0, viewSize.width / 2.0f, viewSize.height);
+        UIView *leftSnapshotView = [view resizableSnapshotViewFromRect:snapshotRegion  afterScreenUpdates:NO withCapInsets:UIEdgeInsetsZero];
+        UIView *leftHalf = [self addShadowToView:leftSnapshotView reverse:YES];
+        [leftHalf.subviews[1] setAlpha:0.0]; // no shadow at the start
+        [transformedPageView addSubview:leftHalf];
+        
+        // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
+        leftHalf.layer.anchorPoint = CGPointMake(0, 0.5);
+        leftHalf.layer.position = CGPointMake(0, viewSize.height/2);
+        
+
+        snapshotRegion.origin.x = viewSize.width / 2.0f;
+        UIView *rightSnapshotView = [view resizableSnapshotViewFromRect:snapshotRegion  afterScreenUpdates:NO withCapInsets:UIEdgeInsetsZero];
+        UIView *rightHalf = [self addShadowToView:rightSnapshotView reverse:NO];
+        [rightHalf.subviews[1] setAlpha:0.0]; // no shadow at the start
+        rightHalf.backgroundColor = [UIColor greenColor];
+
+        CGRect f = rightHalf.frame;
+        f.origin.x = viewSize.width / 2;
+        rightHalf.frame = f;
+        [transformedPageView addSubview:rightHalf];
+        
+        // position is in superlayer's coordinate space, thus self.view.layer coordinate space, therefore position X at 0
+        rightHalf.layer.anchorPoint = CGPointMake(1, 0.5);
+        rightHalf.layer.position = CGPointMake(viewSize.width, viewSize.height/2);
+        
+        [self insertSubview:transformedPageView aboveSubview:view];
+        [view removeFromSuperview];
+        
+        CGRect targetPageFrame = transformedPageView.frame;
+        targetPageFrame.origin.x += viewSize.width / 2;
+        
+        
+        CGRect targetBounds = self.bounds;
+        targetBounds.origin.x += viewSize.width;
+
+        
+        //        [UIView animateWithDuration:1.0 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0.25 options:0 animations:^{
+        [UIView animateWithDuration:0.6 animations:^{
+        
+            transformedPageView.frame = targetPageFrame;
+            
+            leftHalf.layer.position = CGPointMake(viewSize.width / 2, viewSize.height / 2);
+            leftHalf.layer.transform = CATransform3DMakeRotation(M_PI_2, 0.0, 1.0, 0.0);
+            [leftHalf.subviews[1] setAlpha:1];
+            
+            rightHalf.layer.position = leftHalf.layer.position;
+            rightHalf.layer.transform = CATransform3DMakeRotation(-M_PI_2, 0.0, 1.0, 0.0);
+            [rightHalf.subviews[1] setAlpha:1];
+            
+            self.bounds = targetBounds;
+        } completion:^(BOOL finished) {
+            [transformedPageView removeFromSuperview];
+        }];
+
+        
+        
+        NSInteger pageCount = floorf(self.contentSize.width / self.bounds.size.width);
+        NSInteger pageNo = floorf(self.bounds.origin.x / self.bounds.size.width);
+        
+        // by default we will delete the page and slide the next on from the right, the only case when we don't do that is
+        // when we are on the last page and it is not the only page we have
+        if (pageNo == pageCount - 1 && pageCount > 1) {
+            
+        }
+    }
+}
+
+#pragma mark -
 
 
 - (void)shiftAllPageViewsByPageDelta:(NSInteger)pageDelta
@@ -586,7 +735,7 @@
     if (outsideBoundsMinimum && self.firstExtraPageView) {
         // we don't start at -90 degrees because that would render the view behind our first view due to the perspective
         // this constant is related to self.layer.sublayerTransform.m34
-        CGFloat startAngle = self.pageHorizontally ? -M_PI_2 * 0.55 : M_PI_2 * 0.55;
+        CGFloat startAngle = self.pageHorizontally ? -M_PI_2 * 1.2: M_PI_2 * 0.55;
         
         CGFloat progress;
         if (self.pageHorizontally) {
@@ -595,15 +744,21 @@
             progress = -self.bounds.origin.y / self.bounds.size.height;
         }
         CGFloat reverseProgress = 1 - progress;
+        
+        UIView *rotationView = [self.firstExtraPageView.subviews firstObject];
         if (self.pageHorizontally) {
-            self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
+            rotationView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
         } else {
-            self.firstExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
+            rotationView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
         }
 
         // animate shadow. Shadow is the second view added on top of extra page view returned by delegate
-        UIView *shadowView = self.firstExtraPageView.subviews[1];
+        UIView *shadowView = rotationView.subviews[1];
         [shadowView setAlpha:reverseProgress];
+        
+        if ([self.delegate respondsToSelector:@selector(scrollView:rubberBandDraggedAtRelativePosition:)]) {
+            [self.delegate scrollView:self rubberBandDraggedAtRelativePosition:progress];
+        }
     }
     
     
@@ -611,7 +766,7 @@
     if (outsideBoundsMaximum && self.lastExtraPageView) {
         // we don't start at -90 degrees because that would render the view behind our first view due to the perspective
         // this constant is related to self.layer.sublayerTransform.m34
-        CGFloat startAngle = self.pageHorizontally ? M_PI_2 * 0.55 : -M_PI_2 * 0.55;
+        CGFloat startAngle = self.pageHorizontally ? M_PI_2 * 1.2 : -M_PI_2 * 0.55;
         
         CGFloat progress;
         if (self.pageHorizontally) {
@@ -620,16 +775,23 @@
             progress = (self.bounds.origin.y + self.bounds.size.height - self.contentSize.height) / self.bounds.size.height;
         }
         CGFloat reverseProgress = 1 - progress;
+        
+        UIView *rotationView = [self.lastExtraPageView.subviews firstObject];
+        
         if (self.pageHorizontally) {
-            self.lastExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
+            rotationView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 0.0, 1.0, 0.0);
         } else {
-            self.lastExtraPageView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
+            rotationView.layer.transform = CATransform3DMakeRotation(startAngle * reverseProgress, 1.0, 0.0, 0.0);
         }
         
         
         // animate shadow
-        UIView *shadowView = self.lastExtraPageView.subviews[1];
+        UIView *shadowView = rotationView.subviews[1];
         [shadowView setAlpha:reverseProgress];
+        
+        if ([self.delegate respondsToSelector:@selector(scrollView:rubberBandDraggedAtRelativePosition:)]) {
+            [self.delegate scrollView:self rubberBandDraggedAtRelativePosition:progress];
+        }
     }
 
 }
@@ -649,14 +811,13 @@
     
     // create a shadow
     UIView *shadowView = [[UIView alloc] initWithFrame:viewWithShadow.bounds];
-//    shadowView.tag = ShadowViewTag;
     
     CAGradientLayer *gradient = [CAGradientLayer layer];
     gradient.frame = shadowView.bounds;
     gradient.colors = @[(id)[UIColor colorWithWhite:0.0 alpha:0.0].CGColor,
                         (id)[UIColor colorWithWhite:0.0 alpha:1.0].CGColor];
-    gradient.startPoint = CGPointMake(reverse ? 0.0 : 1.0, reverse ? 0.2 : 0.0);
-    gradient.endPoint = CGPointMake(reverse ? 1.0 : 0.0, reverse ? 0.0 : 1.0);
+    gradient.startPoint = CGPointMake(reverse ? 0.0 : 1.0, 1.0);
+    gradient.endPoint = CGPointMake(reverse ? 1.0 : 0.0, 0.0);
     [shadowView.layer insertSublayer:gradient atIndex:1];
     
     // add the original view into our new view
@@ -667,6 +828,24 @@
     [viewWithShadow addSubview:shadowView];
     
     return viewWithShadow;
+}
+
+
+- (UIView *)addPerspectiveToView:(UIView *)view
+{
+    // create a view with the same frame
+    UIView *viewWithPerspective = [[UIView alloc] initWithFrame:view.frame];
+    
+    CATransform3D transform = CATransform3DIdentity;
+    // different values for horizontal and vertical paging, purely based on looks and iteration
+    transform.m34 = self.pageHorizontally ?  -0.002 : - 0.003;
+    viewWithPerspective.layer.sublayerTransform = transform;
+
+    // reposition to 0,0
+    view.frame = view.bounds;
+    [viewWithPerspective addSubview:view];
+    
+    return viewWithPerspective;
 }
 
 @end

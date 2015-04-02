@@ -26,6 +26,12 @@ typedef enum : NSUInteger {
        viewControllerAfterViewController:(UIViewController *)viewController;
 
 
+- (UIView *)pageViewController:(AZExtraPageViewController *)pageViewController
+ extraViewBeforeViewController:(UIViewController *)viewController;
+
+- (UIView *)pageViewController:(AZExtraPageViewController *)pageViewController
+  extraViewAfterViewController:(UIViewController *)viewController;
+
 - (UIViewController *)pageViewController:(AZExtraPageViewController *)pageViewController
  extraViewControllerBeforeViewController:(UIViewController *)viewController;
 
@@ -37,13 +43,18 @@ typedef enum : NSUInteger {
 
 @protocol AZExtraPageViewControllerDelegate <NSObject>
 
-- (void)pageViewController:(AZExtraPageViewController *)pageViewController
-  addedExtraViewController:(UIViewController *)extraViewController
-      beforeViewController:(UIViewController *)viewController;
+//- (void)pageViewController:(AZExtraPageViewController *)pageViewController
+//  addedExtraViewController:(UIViewController *)extraViewController
+//      beforeViewController:(UIViewController *)viewController;
+//
+//- (void)pageViewController:(AZExtraPageViewController *)pageViewController
+//  addedExtraViewController:(UIViewController *)extraViewController
+//      afterViewController:(UIViewController *)viewController;
 
-- (void)pageViewController:(AZExtraPageViewController *)pageViewController
-  addedExtraViewController:(UIViewController *)extraViewController
-      afterViewController:(UIViewController *)viewController;
+- (void)pageViewController:(AZExtraPageViewController *)pageViewController scrolledToViewController:(UIViewController *)viewController;
+
+- (void)pageViewController:(AZExtraPageViewController *)pageViewController rubberBandDraggedAtRelativePosition:(float)rubbedBandRelativePosition;
+
 
 @end
 
@@ -52,11 +63,13 @@ typedef enum : NSUInteger {
 @property (nonatomic, assign) AZExtraPageViewControllerNavigationOrientation navigationOrientation;
 
 @property (nonatomic, weak) id<AZExtraPageViewControllerDataSource> dataSource;
+@property (nonatomic, weak) id<AZExtraPageViewControllerDelegate> delegate;
 
 
 
 - (void)setCurrentViewController:(UIViewController *)currentViewController;
 - (UIViewController *)currentViewController;
+- (void)removeCurrentViewControllerWithAnimation;
 
 - (NSArray *)gestureRecognizers;
 
